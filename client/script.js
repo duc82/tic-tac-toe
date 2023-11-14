@@ -1,43 +1,91 @@
 const container = document.querySelector(".container");
 
 const socket = io("http://localhost:5000");
-const cells = Array.from({ length: 9 }, (_, i) => i);
-const rooms = Array.from({ length: 5 }, (_, i) => `Room ${i + 1}`);
-
 const roomList = document.createElement("ul");
+let roomName = "";
+let username = window.prompt("Enter your username: ");
 
-rooms.forEach((room) => {
-  roomList.innerHTML += `
-  <li class="room" id="${room}">
+socket.on("rooms", (rooms) => {
+  rooms.forEach((room) => {
+    roomList.innerHTML += `
+  <li class="room" id="${room.name}">
     <div class="room-details">
-      <span class="room-name">${room}</span>
+      <span class="room-name">${room.name}</span>
       <span class="player-count">
-        <san class="current">0</span>/2
+        <san class="current-player">${room.currentPlayer}</span>/<span class="max-player">${room.maxPlayer}</span>
       </span>
     </div>
-    <button type="button" class="join-button" onclick="joinRoom('${room}')">Join</button>
+    <button type="button" class="join-button" onclick="joinRoom('${room.name}')">Join</button>
     </li>`;
+  });
+
+  container.append(roomList);
 });
 
-container.append(roomList);
-
-function joinRoom(room) {
-  const board = document.createElement("div");
-  board.id = "board";
-  cells.forEach((cell) => {
-    board.innerHTML += "<div class='cell'></div>";
-  });
+function joinRoom(roomName) {
+  while (!username) {
+    username = window.prompt("Enter your username: ");
+  }
+  roomName = roomName;
+  socket.emit("joinRoom", roomName, username);
   container.removeChild(roomList);
-  container.append(board);
-
-  socket.emit("joinRoom", room);
 }
 
-socket.on("joinRoom", (room) => {
-  const rootElement = document.getElementById(room);
-  if (rootElement) {
-    const currentCount = rootElement.querySelector(".player-count .current");
-    console.log(currentCount);
-    currentCount.textContent = +currentCount.textContent + 1;
+socket.on("updateRoom", (room) => {
+  const roomEl = document.getElementById(room.name);
+  if (roomEl) {
+    roomEl.innerHTML = `   
+  <li class="room" id="${room.name}">
+    <div class="room-details">
+      <span class="room-name">${room.name}</span>
+      <span class="player-count">
+        <span class="current-player">${
+          room.currentPlayer
+        }</span>/<span class="max-player">${room.maxPlayer}</span>
+      </span>
+    </div>
+    ${
+      room.currentPlayer < room.maxPlayer
+        ? `<button
+          type="button"
+          class="join-button"
+          onclick="joinRoom('${room.name}')"
+        >
+          Join
+        </button>`
+        : '<span class="join-button">Full</span>'
+    }
+    </li>`;
   }
+});
+
+function countDown(el, time) {
+  let n = time / 1000;
+  el.textContent = n;
+  const intervalId = setInterval(() => {
+    if (n <= 0) {
+      clearInterval(intervalId);
+      socket.emit("turn", roomName);
+      return;
+    }
+    n--;
+    el.textContent = n;
+  }, 1000);
+}
+
+socket.on("startGame", (cells, turn, time) => {
+  container.innerHTML = "";
+  const game = document.createElement("div");
+  game.className = "game";
+  const turnEl = document.createElement("span");
+  turnEl.textContent = socket.id === turn ? "Your turn" : `${turn} turn`;
+  const timeEl = document.createElement("div");
+  countDown(timeEl, time);
+  const board = document.createElement("div");
+  board.id = "board";
+  cells.forEach(() => {
+    board.innerHTML += "<div class='cell'></div>";
+  });
+  game.append(timeEl, turnEl, board);
+  container.append(game);
 });

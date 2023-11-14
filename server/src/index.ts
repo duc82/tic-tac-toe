@@ -1,12 +1,21 @@
 import { Server } from "socket.io";
 import http from "http";
 
+interface Room {
+  name: string;
+  currentPlayer: number;
+  maxPlayer: number;
+}
+
 interface ServerToClientEvents {
-  joinRoom: (room: string) => void;
+  rooms: (rooms: Room[]) => void;
+  updateRoom: (room: Room) => void;
+  startGame: (cells: number[], turn: string, time: number) => void;
 }
 
 interface ClientToServerEvents {
-  joinRoom: (room: string) => void;
+  joinRoom: (roomName: string, username: string) => void;
+  turn: (roomName: string) => void;
 }
 
 interface InterServerEvents {
@@ -14,6 +23,13 @@ interface InterServerEvents {
 }
 
 const server = http.createServer();
+
+const rooms: Room[] = Array.from({ length: 5 }, (_, i) => {
+  return { name: `Room ${i + 1}`, currentPlayer: 0, maxPlayer: 2 };
+});
+
+const cells = Array.from({ length: 9 }, (_, i) => i);
+let time = 30000;
 
 const io = new Server<
   ClientToServerEvents,
@@ -28,13 +44,32 @@ const io = new Server<
 io.on("connection", (socket) => {
   console.log("A socket connected: " + socket.id);
 
-  const rooms = Array.from(socket.rooms);
+  socket.emit("rooms", rooms);
 
-  console.log(socket.rooms);
+  socket.on("joinRoom", async (roomName, username) => {
+    const roomIndex = rooms.findIndex((room) => room.name === roomName);
+    if (roomIndex !== -1) {
+      if (rooms[roomIndex].currentPlayer >= rooms[roomIndex].maxPlayer) return;
 
-  socket.on("joinRoom", (room) => {
-    socket.join(room);
-    io.emit("joinRoom", room);
+      socket.join(roomName);
+      rooms[roomIndex].currentPlayer++;
+      io.emit("updateRoom", rooms[roomIndex]);
+      const sockets = await io.in(roomName).fetchSockets();
+      if (sockets.length === 2) {
+        const turn = sockets[0].id;
+
+        io.to(roomName).emit("startGame", cells, turn, time);
+      }
+    }
+  });
+
+  socket.on("disconnecting", () => {
+    const disconnectRoom = Array.from(socket.rooms)[1];
+    const roomIndex = rooms.findIndex((room) => room.name === disconnectRoom);
+    if (roomIndex !== -1) {
+      rooms[roomIndex].currentPlayer--;
+      io.emit("updateRoom", rooms[roomIndex]);
+    }
   });
 });
 
