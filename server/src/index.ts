@@ -1,16 +1,12 @@
 import { Server } from "socket.io";
 import http from "http";
-
-interface Room {
-  name: string;
-  currentPlayer: number;
-  maxPlayer: number;
-}
+import type { Room, Turn } from "./types";
+import { addPlayer, deletePlayer, getPlayers, updatePlayer } from "./player";
 
 interface ServerToClientEvents {
   rooms: (rooms: Room[]) => void;
   updateRoom: (room: Room) => void;
-  startGame: (cells: number[], turn: string, time: number) => void;
+  startGame: (cells: number[], turn: Turn, time: number) => void;
 }
 
 interface ClientToServerEvents {
@@ -46,28 +42,43 @@ io.on("connection", (socket) => {
 
   socket.emit("rooms", rooms);
 
-  socket.on("joinRoom", async (roomName, username) => {
+  socket.on("joinRoom", (roomName, username) => {
     const roomIndex = rooms.findIndex((room) => room.name === roomName);
     if (roomIndex !== -1) {
       if (rooms[roomIndex].currentPlayer >= rooms[roomIndex].maxPlayer) return;
 
       socket.join(roomName);
+
       rooms[roomIndex].currentPlayer++;
+      addPlayer({ socketId: socket.id, room: rooms[roomIndex], username });
+
       io.emit("updateRoom", rooms[roomIndex]);
-      const sockets = await io.in(roomName).fetchSockets();
-      if (sockets.length === 2) {
-        const turn = sockets[0].id;
+
+      const players = getPlayers(roomName);
+
+      if (players.length === 2) {
+        const turn: Turn = {
+          player: players[0],
+          value: "X",
+        };
 
         io.to(roomName).emit("startGame", cells, turn, time);
       }
     }
   });
 
+  socket.on("turn",(roomName) => {
+    const players = getPlayers(roomName);
+
+    
+  })
+
   socket.on("disconnecting", () => {
     const disconnectRoom = Array.from(socket.rooms)[1];
     const roomIndex = rooms.findIndex((room) => room.name === disconnectRoom);
     if (roomIndex !== -1) {
       rooms[roomIndex].currentPlayer--;
+      deletePlayer(socket.id);
       io.emit("updateRoom", rooms[roomIndex]);
     }
   });

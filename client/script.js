@@ -4,6 +4,9 @@ const socket = io("http://localhost:5000");
 const roomList = document.createElement("ul");
 let roomName = "";
 let username = window.prompt("Enter your username: ");
+while (!username) {
+  username = window.prompt("Enter your username: ");
+}
 
 socket.on("rooms", (rooms) => {
   rooms.forEach((room) => {
@@ -23,9 +26,6 @@ socket.on("rooms", (rooms) => {
 });
 
 function joinRoom(roomName) {
-  while (!username) {
-    username = window.prompt("Enter your username: ");
-  }
   roomName = roomName;
   socket.emit("joinRoom", roomName, username);
   container.removeChild(roomList);
@@ -78,7 +78,10 @@ socket.on("startGame", (cells, turn, time) => {
   const game = document.createElement("div");
   game.className = "game";
   const turnEl = document.createElement("span");
-  turnEl.textContent = socket.id === turn ? "Your turn" : `${turn} turn`;
+  turnEl.textContent =
+    socket.id === turn.player.socketId
+      ? "Your turn"
+      : `${turn.player.username} turn`;
   const timeEl = document.createElement("div");
   countDown(timeEl, time);
   const board = document.createElement("div");
