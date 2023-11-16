@@ -3,6 +3,7 @@ const container = document.querySelector(".container");
 const socket = io("http://localhost:5000");
 const roomList = document.createElement("ul");
 let roomName = "";
+let turn;
 let username = window.prompt("Enter your username: ");
 while (!username) {
   username = window.prompt("Enter your username: ");
@@ -65,7 +66,7 @@ function countDown(el, time) {
   const intervalId = setInterval(() => {
     if (n <= 0) {
       clearInterval(intervalId);
-      socket.emit("turn", roomName);
+      socket.emit("turn", roomName, turn);
       return;
     }
     n--;
@@ -75,6 +76,7 @@ function countDown(el, time) {
 
 socket.on("startGame", (cells, turn, time) => {
   container.innerHTML = "";
+  turn = turn;
   const game = document.createElement("div");
   game.className = "game";
   const turnEl = document.createElement("span");
